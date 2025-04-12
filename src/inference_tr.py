@@ -187,8 +187,9 @@ class ElectricityDemandPredictor:
             # Store prediction after inverse scaling
             prediction = self.scaler.inverse_transform([[next_scaled_value]])[0][0]
             predictions.append(prediction)
+            predictions_df = pd.DataFrame(predictions, columns=['prediction'])
             
-        return np.array(predictions)
+        return predictions_df
     
     def plot_prediction(self, historical_data, predictions, future_dates=None):
         """
