@@ -148,32 +148,51 @@ class ElectricityDemandPredictor:
         
         Parameters:
         -----------
-        recent_data : pd.DataFrame or np.array
+        recent_data : pd.DataFrame
             Recent demand data (at least time_steps points)
         n_steps : int
             Number of future steps to predict
-            
+                
         Returns:
         --------
-        np.array
-            Array of predicted values
+        pd.DataFrame
+            DataFrame with date and demand predictions for next n_steps
         """
         if self.scaler is None:
             raise ValueError("Scaler not initialized. Call fit_scaler first.")
-            
+                
         # Initialize input data
         if isinstance(recent_data, pd.DataFrame):
             working_data = self.scaler.transform(recent_data[['demand']].values)
+            # Get the last date from the input data
+            last_date = recent_data.index[-1]
         else:
-            working_data = self.scaler.transform(recent_data.reshape(-1, 1))
-            
+            raise ValueError("Input must be a pandas DataFrame with DatetimeIndex")
+                
         working_data = working_data.flatten()
         
         # Store predictions
         predictions = []
+        future_dates = []
+        
+        # Calculate time difference between consecutive timestamps
+        if len(recent_data.index) >= 2:
+            # Calculate time differences between consecutive timestamps
+            time_diffs = [recent_data.index[i+1] - recent_data.index[i] for i in range(len(recent_data.index)-1)]
+            
+            # Convert to seconds for comparison
+            seconds_diffs = [td.total_seconds() for td in time_diffs]
+            
+            # Use the most common time difference
+            from collections import Counter
+            most_common_seconds = Counter(seconds_diffs).most_common(1)[0][0]
+            time_step = pd.Timedelta(seconds=most_common_seconds)
+        else:
+            # Default to hourly if we can't determine frequency
+            time_step = pd.Timedelta(hours=1)
         
         # Predict n steps ahead
-        for _ in range(n_steps):
+        for i in range(n_steps):
             # Use the last time_steps points for prediction
             sequence = working_data[-self.time_steps:]
             X = np.reshape(sequence, (1, self.time_steps, 1))
@@ -184,10 +203,22 @@ class ElectricityDemandPredictor:
             # Add to working data for next iteration
             working_data = np.append(working_data, next_scaled_value)
             
-            # Store prediction after inverse scaling
-            prediction = self.scaler.inverse_transform([[next_scaled_value]])[0][0]
+            # Store prediction after inverse scaling - ensure it's a float
+            prediction = float(self.scaler.inverse_transform([[next_scaled_value]])[0][0])
             predictions.append(prediction)
-            predictions_df = pd.DataFrame(predictions, columns=['prediction'])
+            
+            # Calculate the next timestamp
+            next_date = last_date + ((i + 1) * time_step)
+            future_dates.append(next_date)
+        
+        # Create the predictions DataFrame
+        predictions_df = pd.DataFrame({
+            'date': future_dates,
+            'demand': predictions
+        })
+        
+        # Set date as index to match the format of the input data
+        predictions_df.set_index('date', inplace=True)
             
         return predictions_df
     
