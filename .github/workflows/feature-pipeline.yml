@@ -1,0 +1,58 @@
+name: feature-pipeline
+
+on:
+  # push:
+  #   branches: [ main ] 
+  #schedule:
+  #- cron: '0 * * * *'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: 3.9
+  UV_VERSION: 0.1.22
+
+jobs:
+  feature_pipeline:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      
+    # Cache for UV
+    - name: Cache UV cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/uv
+        key: uv-cache-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ env.UV_VERSION }}
+        
+    # Cache for virtualenv
+    - name: Cache virtualenv
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: uv-venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('.github/workflows/*.yml') }}
+        
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install UV
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+    - name: Install Dependencies
+      run: |
+        uv venv .venv
+        source .venv/bin/activate
+        uv pip install -r requirements.txt
+        
+    - name: Run feature pipeline
+      env:
+        HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      run: |
+        source .venv/bin/activate
+        jupyter nbconvert --to notebook --execute nootbooks/5-feature_pipline.ipynb
+      #run: make features
