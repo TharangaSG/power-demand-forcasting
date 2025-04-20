@@ -57,5 +57,5 @@ jobs:
             COMET_ML_PROJECT_NAME: ${{ secrets.COMET_ML_PROJECT_NAME }}
           run: |
             source .venv/bin/activate
-            jupyter nbconvert --to notebook --execute nootbooks/2-training-pipline-transformer.ipynb
+            jupyter nbconvert --to notebook --execute nootbooks/2-training-pipline-enhanced-transformer.ipynb
           #run: make training
